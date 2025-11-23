@@ -1,5 +1,6 @@
 #!/bin/bash
 
+# ======= CORES =======
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
@@ -12,6 +13,8 @@ APP_DIR="/opt/RR-WhatsApp-API"
 SERVICE="/etc/systemd/system/rrwa.service"
 CONFIG="$APP_DIR/config.json"
 
+
+# ======= ANIMAÇÃO SPINNER =======
 spin() {
     sp='/-\|'
     while true; do
@@ -21,6 +24,7 @@ spin() {
     done
 }
 
+# ======= LOGO =======
 logo() {
     clear
     echo -e "${CYAN}"
@@ -34,6 +38,8 @@ logo() {
     echo ""
 }
 
+
+# ======= INSTALAÇÃO =======
 install_rrwa() {
     logo
     echo -e "${GREEN}[+] Iniciando instalação...${RESET}"
@@ -43,15 +49,16 @@ install_rrwa() {
     apt update -y &>/dev/null
     apt upgrade -y &>/dev/null
     kill $SP
+    echo ""
 
-    echo -e "\n${GREEN}[+] Instalando dependências básicas...${RESET}"
+    echo -e "${GREEN}[+] Instalando dependências básicas...${RESET}"
     apt install -y git curl wget unzip nano &>/dev/null
 
-    echo -e "${GREEN}[+] Instalando Node 18...${RESET}"
+    echo -e "${GREEN}[+] Instalando NodeJS 18...${RESET}"
     curl -fsSL https://deb.nodesource.com/setup_18.x | bash - &>/dev/null
     apt install -y nodejs build-essential &>/dev/null
 
-    echo -e "${GREEN}[+] Baixando repositório...${RESET}"
+    echo -e "${GREEN}[+] Baixando API...${RESET}"
     rm -rf "$APP_DIR"
     git clone https://github.com/remontti/RR-WhatsApp-API.git "$APP_DIR" &>/dev/null
     cd "$APP_DIR"
@@ -59,10 +66,10 @@ install_rrwa() {
     echo -e "${GREEN}[+] Instalando dependências do projeto...${RESET}"
     npm install --force &>/dev/null
 
-    echo -e "${GREEN}[+] Baixando Chromium correto (puppeteer)...${RESET}"
+    echo -e "${GREEN}[+] Instalando Chromium do Puppeteer...${RESET}"
     npm install puppeteer &>/dev/null
 
-    echo -e "${GREEN}[+] Corrigindo index.js automaticamente...${RESET}"
+    echo -e "${GREEN}[+] Aplicando correções automáticas no index.js...${RESET}"
 
 sed -i 's/new Client({/new Client({ \
     puppeteer: { \
@@ -101,29 +108,77 @@ EOF
     systemctl restart rrwa.service
 
     logo
-    echo -e "${GREEN}✔ Tudo instalado e rodando!${RESET}"
+    echo -e "${GREEN}✔ Instalação concluída!${RESET}"
     echo "Acesse: http://SEU-IP:8080"
-    read -p "ENTER para voltar ao menu..."
+    read -p "ENTER para voltar..."
 }
 
+# ======= EDITAR IPs PERMITIDOS =======
+edit_ips() {
+    logo
+    echo -e "${YELLOW}IPs atuais permitidos:${RESET}"
+    jq '.allowedIPs' "$CONFIG"
+    echo ""
+    read -p "Digite os novos IPs separados por vírgula (ex: 192.168.0.10, 10.0.0.5, *): " newips
+
+    newips_json=$(echo "$newips" | sed 's/, */","/g')
+    echo -e "${GREEN}[+] Salvando...${RESET}"
+
+cat <<EOF > "$CONFIG"
+{
+  "port": $(jq '.port' $CONFIG),
+  "allowedIPs": ["$newips_json"]
+}
+EOF
+
+    systemctl restart rrwa.service
+    echo -e "${GREEN}✔ IPs atualizados!${RESET}"
+    read -p "ENTER..."
+}
+
+# ======= START / STOP / RESTART =======
+start_service() {
+    systemctl start rrwa.service
+    echo -e "${GREEN}✔ Serviço iniciado!${RESET}"
+    read -p "ENTER..."
+}
+
+stop_service() {
+    systemctl stop rrwa.service
+    echo -e "${RED}✔ Serviço parado.${RESET}"
+    read -p "ENTER..."
+}
+
+restart_service() {
+    systemctl restart rrwa.service
+    echo -e "${GREEN}✔ Serviço reiniciado.${RESET}"
+    read -p "ENTER..."
+}
+
+# ======= RESET SESSÃO =======
 reset_session() {
     logo
-    echo -e "${YELLOW}[!] Apagando sessão WhatsApp...${RESET}"
+    echo -e "${YELLOW}[!] Limpando sessão WhatsApp...${RESET}"
     rm -rf "$APP_DIR/.wwebjs_auth"
     systemctl restart rrwa.service
     echo -e "${GREEN}✔ Sessão resetada.${RESET}"
     read -p "ENTER..."
 }
 
+# ======= ALTERAR PORTA =======
 change_port() {
     logo
     read -p "Nova porta: " port
-    sed -i "s/\"port\": .*/\"port\": $port,/" "$CONFIG"
+
+    jq --arg p "$port" '.port = ($p|tonumber)' "$CONFIG" > "$CONFIG.tmp"
+    mv "$CONFIG.tmp" "$CONFIG"
+
     systemctl restart rrwa.service
     echo -e "${GREEN}✔ Porta alterada para $port${RESET}"
     read -p "ENTER..."
 }
 
+# ======= DESINSTALAR =======
 uninstall_rrwa() {
     logo
     echo -e "${RED}[!] Removendo tudo...${RESET}"
@@ -136,30 +191,40 @@ uninstall_rrwa() {
     read -p "ENTER..."
 }
 
+# ======= STATUS =======
 show_status() {
     logo
     systemctl status rrwa.service
     read -p "ENTER..."
 }
 
+# ======= MENU =======
 menu() {
     while true; do
         logo
         echo -e "${BLUE}1) Instalar API${RESET}"
         echo -e "${BLUE}2) Resetar sessão${RESET}"
         echo -e "${BLUE}3) Alterar porta${RESET}"
-        echo -e "${BLUE}4) Status do serviço${RESET}"
-        echo -e "${RED}5) Desinstalar${RESET}"
+        echo -e "${BLUE}4) Editar IPs permitidos${RESET}"
+        echo -e "${BLUE}5) Status API${RESET}"
+        echo -e "${BLUE}6) Iniciar serviço${RESET}"
+        echo -e "${BLUE}7) Parar serviço${RESET}"
+        echo -e "${BLUE}8) Reiniciar serviço${RESET}"
+        echo -e "${RED}9) Desinstalar${RESET}"
         echo -e "${YELLOW}0) Sair${RESET}"
         echo ""
-        read -p "Escolha: " opt
 
+        read -p "Escolha: " opt
         case $opt in
             1) install_rrwa ;;
             2) reset_session ;;
             3) change_port ;;
-            4) show_status ;;
-            5) uninstall_rrwa ;;
+            4) edit_ips ;;
+            5) show_status ;;
+            6) start_service ;;
+            7) stop_service ;;
+            8) restart_service ;;
+            9) uninstall_rrwa ;;
             0) exit ;;
             *) echo "Opção inválida" ;;
         esac
