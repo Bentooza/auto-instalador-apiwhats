@@ -1,4 +1,3 @@
-
 #!/bin/bash
 
 APP_DIR="/opt/RR-WhatsApp-API"
@@ -67,4 +66,5 @@ echo " RR-WhatsApp-API instalada com sucesso!"
 echo " By Bento - AUTO INSTALL"
 echo " Acesse: http://SEU-IP:8080"
 echo "=========================================="
+
 
