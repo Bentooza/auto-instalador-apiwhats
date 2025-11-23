@@ -22,5 +22,7 @@ Para instalar a API em qualquer máquina, rode o comando abaixo:
 ```bash
 bash <(curl -s https://raw.githubusercontent.com/Bentooza/auto-instalador-apiwhats/main/install.sh)
 
+Para instalar a API em qualquer máquina, rode o comando abaixo:
 
-https://github.com/Bentooza/auto-instalador-apiwhats/blob/main/install_animated.sh
+```bash
+bash <(curl -s https://github.com/Bentooza/auto-instalador-apiwhats/blob/main/install_animated.sh)
