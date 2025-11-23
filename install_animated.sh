@@ -1,6 +1,5 @@
 #!/bin/bash
 
-# CORES
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
@@ -38,29 +37,39 @@ logo() {
 install_rrwa() {
     logo
     echo -e "${GREEN}[+] Iniciando instalação...${RESET}"
+
     spin "Atualizando sistema..." &
-    SPIN_PID=$!
+    SP=$!
     apt update -y &>/dev/null
     apt upgrade -y &>/dev/null
-    kill $SPIN_PID
+    kill $SP
 
-    echo -e "\n${GREEN}[+] Instalando dependências...${RESET}"
+    echo -e "\n${GREEN}[+] Instalando dependências básicas...${RESET}"
     apt install -y git curl wget unzip nano &>/dev/null
 
-    echo -e "${GREEN}[+] Instalando NodeJS 18...${RESET}"
+    echo -e "${GREEN}[+] Instalando Node 18...${RESET}"
     curl -fsSL https://deb.nodesource.com/setup_18.x | bash - &>/dev/null
     apt install -y nodejs build-essential &>/dev/null
 
-    echo -e "${GREEN}[+] Instalando libs necessárias...${RESET}"
-    apt install -y chromium libatk-bridge2.0-0 libcups2 libxcomposite1 libxdamage1 \
-    libxrandr2 libgbm1 libasound2 libpangocairo-1.0-0 libxkbcommon0 libpango1.0-0 \
-    libnss3 libatk1.0-0 libgtk-3-0 &>/dev/null
-
-    echo -e "${GREEN}[+] Baixando RR-WhatsApp-API...${RESET}"
+    echo -e "${GREEN}[+] Baixando repositório...${RESET}"
+    rm -rf "$APP_DIR"
     git clone https://github.com/remontti/RR-WhatsApp-API.git "$APP_DIR" &>/dev/null
-
     cd "$APP_DIR"
+
+    echo -e "${GREEN}[+] Instalando dependências do projeto...${RESET}"
     npm install --force &>/dev/null
+
+    echo -e "${GREEN}[+] Baixando Chromium correto (puppeteer)...${RESET}"
+    npm install puppeteer &>/dev/null
+
+    echo -e "${GREEN}[+] Corrigindo index.js automaticamente...${RESET}"
+
+sed -i 's/new Client({/new Client({ \
+    puppeteer: { \
+        executablePath: require("puppeteer").executablePath(), \
+        headless: true, \
+        args: ["--no-sandbox","--disable-dev-shm-usage"] \
+    },/' index.js
 
     echo -e "${GREEN}[+] Criando config padrão...${RESET}"
 cat <<EOF > "$CONFIG"
@@ -70,7 +79,7 @@ cat <<EOF > "$CONFIG"
 }
 EOF
 
-    echo -e "${GREEN}[+] Criando serviço...${RESET}"
+    echo -e "${GREEN}[+] Criando serviço systemd...${RESET}"
 cat <<EOF > "$SERVICE"
 [Unit]
 Description=RR WhatsApp API Service (By Bento)
@@ -89,21 +98,21 @@ EOF
 
     systemctl daemon-reload
     systemctl enable rrwa.service
-    systemctl start rrwa.service
+    systemctl restart rrwa.service
 
     logo
-    echo -e "${GREEN}✔ Instalação concluída com sucesso!${RESET}"
-    echo -e "Acesse: ${CYAN}http://SEU-IP:8080${RESET}"
+    echo -e "${GREEN}✔ Tudo instalado e rodando!${RESET}"
+    echo "Acesse: http://SEU-IP:8080"
     read -p "ENTER para voltar ao menu..."
 }
 
 reset_session() {
     logo
-    echo -e "${YELLOW}[!] Resetando sessão...${RESET}"
-    rm -rf $APP_DIR/.wwebjs_auth
+    echo -e "${YELLOW}[!] Apagando sessão WhatsApp...${RESET}"
+    rm -rf "$APP_DIR/.wwebjs_auth"
     systemctl restart rrwa.service
     echo -e "${GREEN}✔ Sessão resetada.${RESET}"
-    read -p "ENTER para voltar ao menu..."
+    read -p "ENTER..."
 }
 
 change_port() {
@@ -111,35 +120,35 @@ change_port() {
     read -p "Nova porta: " port
     sed -i "s/\"port\": .*/\"port\": $port,/" "$CONFIG"
     systemctl restart rrwa.service
-    echo -e "${GREEN}✔ Porta alterada!${RESET}"
-    read -p "ENTER para voltar ao menu..."
+    echo -e "${GREEN}✔ Porta alterada para $port${RESET}"
+    read -p "ENTER..."
 }
 
 uninstall_rrwa() {
     logo
-    echo -e "${RED}[!] Removendo serviço...${RESET}"
+    echo -e "${RED}[!] Removendo tudo...${RESET}"
     systemctl stop rrwa.service
     systemctl disable rrwa.service
-    rm -f $SERVICE
+    rm -f "$SERVICE"
     systemctl daemon-reload
     rm -rf "$APP_DIR"
     echo -e "${GREEN}✔ Removido!${RESET}"
-    read -p "ENTER para voltar ao menu..."
+    read -p "ENTER..."
 }
 
 show_status() {
     logo
     systemctl status rrwa.service
-    read -p "ENTER para voltar ao menu..."
+    read -p "ENTER..."
 }
 
 menu() {
     while true; do
         logo
         echo -e "${BLUE}1) Instalar API${RESET}"
-        echo -e "${BLUE}2) Resetar sessão (QR novo)${RESET}"
+        echo -e "${BLUE}2) Resetar sessão${RESET}"
         echo -e "${BLUE}3) Alterar porta${RESET}"
-        echo -e "${BLUE}4) Ver status${RESET}"
+        echo -e "${BLUE}4) Status do serviço${RESET}"
         echo -e "${RED}5) Desinstalar${RESET}"
         echo -e "${YELLOW}0) Sair${RESET}"
         echo ""
@@ -152,7 +161,7 @@ menu() {
             4) show_status ;;
             5) uninstall_rrwa ;;
             0) exit ;;
-            *) echo "Inválido" ;;
+            *) echo "Opção inválida" ;;
         esac
     done
 }
