@@ -1,70 +1,68 @@
 #!/bin/bash
+set -e
 
-APP_DIR="/opt/RR-WhatsApp-API"
-SERVICE="/etc/systemd/system/rrwa.service"
-CONFIG="$APP_DIR/config.json"
+# Variável com URL do seu repositório Git
+GIT_REPO="https://github.com/seu-usuario/RR-WhatsApp-API.git"
 
-echo "=========================================="
-echo " Instalando RR-WhatsApp-API (By Bento AUTO)"
-echo "=========================================="
+echo "Atualizando sistema..."
+sudo apt update && sudo apt upgrade -y
 
-# Update do sistema
-apt update -y && apt upgrade -y
+echo "Instalando dependências do sistema..."
+sudo apt install -y curl wget git build-essential unzip xvfb libnss3 libatk1.0-0 libatk-bridge2.0-0 libcups2 libxkbcommon0 libxcomposite1 libxdamage1 libxrandr2 libgbm1 libasound2 libpangocairo-1.0-0 libpango-1.0-0 libgtk-3-0 chromium
 
-# Dependências básicas
-apt install -y git curl wget unzip nano
+echo "Instalando Node.js 18.x..."
+curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash -
+sudo apt install -y nodejs
 
-# Node 18 (compatível com Debian 12)
-curl -fsSL https://deb.nodesource.com/setup_18.x | bash -
-apt install -y nodejs build-essential
+echo "Clonando repositório..."
+git clone $GIT_REPO /opt/RR-WhatsApp-API || (cd /opt/RR-WhatsApp-API && git pull)
 
-# Dependências do Chromium (necessárias para puppeteer)
-apt install -y chromium libatk-bridge2.0-0 libcups2 libxcomposite1 libxdamage1 \
-libxrandr2 libgbm1 libasound2 libpangocairo-1.0-0 libxkbcommon0 libpango1.0-0 \
-libnss3 libatk1.0-0 libgtk-3-0
+cd /opt/RR-WhatsApp-API
 
-# Baixar código
-rm -rf "$APP_DIR"
-git clone https://github.com/remontti/RR-WhatsApp-API.git "$APP_DIR"
+echo "Criando pastas necessárias..."
+mkdir -p session
+mkdir -p public
 
-cd "$APP_DIR"
-npm install --force
+echo "Instalando dependências npm..."
+PUPPETEER_SKIP_DOWNLOAD=true npm install --force
 
-# Criar config
-cat <<EOF > "$CONFIG"
-{
-  "port": 8080,
-  "allowedIPs": ["*"]
-}
-EOF
+echo "Configurando Puppeteer para usar Chromium do sistema..."
+npm install puppeteer-core --ignore-scripts
 
-# Criar service
-cat <<EOF > "$SERVICE"
+echo "Criando .gitignore..."
+cat > .gitignore <<EOL
+node_modules/
+session/
+*.log
+.DS_Store
+Thumbs.db
+.env
+EOL
+
+echo "Criando serviço systemd..."
+cat | sudo tee /etc/systemd/system/rrwa.service > /dev/null <<EOL
 [Unit]
-Description=RR WhatsApp API Service (By Bento AUTO)
+Description=RR WhatsApp API Service (By Bento)
 After=network.target
 
 [Service]
-ExecStart=/usr/bin/node $APP_DIR/index.js
-WorkingDirectory=$APP_DIR
+ExecStart=/usr/bin/node /opt/RR-WhatsApp-API/index.js
+WorkingDirectory=/opt/RR-WhatsApp-API
 Restart=always
-User=root
+User=$(whoami)
 Environment=NODE_ENV=production
-Environment=CHROME_BIN=/usr/bin/chromium
+Environment=PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
+StandardOutput=inherit
+StandardError=inherit
 
 [Install]
 WantedBy=multi-user.target
-EOF
+EOL
 
-# Ativar serviço
-systemctl daemon-reload
-systemctl enable rrwa.service
-systemctl start rrwa.service
+echo "Recarregando systemd e iniciando serviço..."
+sudo systemctl daemon-reload
+sudo systemctl enable rrwa.service
+sudo systemctl start rrwa.service
 
-echo "=========================================="
-echo " RR-WhatsApp-API instalada com sucesso!"
-echo " By Bento - AUTO INSTALL"
-echo " Acesse: http://SEU-IP:8080"
-echo "=========================================="
-
-
+echo "Instalação completa! A API deve iniciar automaticamente e ao reiniciar o servidor."
+sudo systemctl status rrwa.service
